@@ -1,0 +1,5 @@
+colorlog==4.0.2
+psutil
+pypiwin32
+opencv_python==4.1.0.25
+numpy==1.16.2
