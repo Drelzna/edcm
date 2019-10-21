@@ -30,11 +30,11 @@ def get_elite_size():
     logger.info("get_elite_size()")
     screen_size = {}
     elite_hwnd = windows.get_elite_hwnd()
-    x, y, w, h = win32gui.GetWindowRect(elite_hwnd)
-    screen_size['left'] = x
-    screen_size['top'] = y
-    screen_size['width'] = w - x
-    screen_size['height'] = h - y
+    left, top, x2, y2 = win32gui.GetWindowRect(elite_hwnd)
+    screen_size['left'] = left
+    screen_size['top'] = top
+    screen_size['width'] = x2 - left + 1
+    screen_size['height'] = y2 - top + 1
     logger.debug("return get_elite_size: left => %d, top => %d, width => %d, height => %d" % (
         screen_size['left'], screen_size['top'], screen_size['width'], screen_size['height']))
     return screen_size
@@ -118,23 +118,18 @@ def equalize(image):
     :param image: incoming screen grab image
     :return: processed image, BGR2GRAY+CLAHE
     """
-    img = image.copy()
     # Load the image in greyscale
-    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     # create a CLAHE object (Arguments are optional).
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     img_clahe = clahe.apply(img_gray)
-    return img_clahe
+    img = img_clahe.copy()
+    return img
 
 
 def filter(image=None, testing=False, equalize_it=False, f1=None, f2=None):
     while True:
-        screen_size = get_elite_size()
-
-        if testing:
-            img = get_screen(screen_size)
-        else:
-            img = image.copy()
+        img = image.copy()
 
         if equalize_it:
             equalized = equalize(img)

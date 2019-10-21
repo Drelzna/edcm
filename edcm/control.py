@@ -14,6 +14,16 @@ FUNCTION_DEFAULT_DELAY = 0.500
 
 
 def send(key, hold=None, repeat=1, repeat_delay=None, state=None):
+    """
+    send() interface to directkey pressKey and releaseKey methods
+
+    :param key: The DirectKey to Press
+    :param hold: pressKey, sleep for 'hold' seconds, releaseKey
+    :param repeat: repeat pressKey and releaseKey 'repeat' times
+    :param repeat_delay: wait 'repeat_delay' seconds per repeat loop
+    :param state: 1 = pressKey, 2 = releaseKey
+    :return:
+    """
     global KEY_MOD_DELAY, KEY_DEFAULT_DELAY, KEY_REPEAT_DELAY
 
     if key is None:

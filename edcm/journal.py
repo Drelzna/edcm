@@ -23,8 +23,6 @@ def get_latest_journal(player_journal_location=None):
 
 def get_ship_status():
     """Returns a 'status' dict containing relevant game status information (state, fuel, ...)"""
-    logger.info("get_ship_status()")
-    s = datetime.now()
     latest_log = get_latest_journal()
     ship = {
         'time': (datetime.now() - datetime.fromtimestamp(getmtime(latest_log))).seconds,
@@ -33,6 +31,8 @@ def get_ship_status():
         'location': None,
         'star_class': None,
         'target': None,
+        'cargo_count': None,
+        'cargo_capacity': None,
         'fuel_capacity': None,
         'fuel_level': None,
         'fuel_percent': None,
@@ -66,11 +66,16 @@ def get_ship_status():
                 elif log_event == 'DockingRequested':
                     ship['status'] = 'starting_docking'
 
-                elif log_event == "Music" and log['MusicTrack'] == "DockingComputer":
-                    if ship['status'] == 'starting_undocking':
-                        ship['status'] = 'in_undocking'
-                    elif ship['status'] == 'starting_docking':
-                        ship['status'] = 'in_docking'
+                elif log_event == "Music":
+                    if log['MusicTrack'] == "DockingComputer":
+                        if ship['status'] == 'starting_undocking':
+                            ship['status'] = 'in_undocking'
+                        elif ship['status'] == 'starting_docking':
+                            ship['status'] = 'in_docking'
+                        else:
+                            ship['status'] = 'docking'
+                    elif log['MusicTrack'] == "NoTrack":
+                            ship['status'] = 'in_space'
 
                 elif log_event == 'Docked':
                     ship['status'] = 'in_station'
@@ -78,6 +83,9 @@ def get_ship_status():
                 # parse ship type
                 if log_event == 'LoadGame' or log_event == 'Loadout':
                     ship['type'] = log['Ship']
+
+                if log_event == 'Loadout':
+                    ship['cargo_capacity'] = log['CargoCapacity']
 
                 # parse fuel
                 if 'FuelLevel' in log and ship['type'] != 'TestBuggy':
@@ -116,15 +124,13 @@ def get_ship_status():
                     if ship['location'] == ship['target']:
                         ship['target'] = None
 
+                # parse cargo
+                if (log_event == 'Cargo'):
+                    if log['Vessel'] == 'Ship':
+                        ship['cargo_count'] = log['Count']
+
             # exceptions
             except Exception as e:
                 logging.exception("Exception occurred")
                 print(e)
-
-        logger.debug('ship_status = %s' % json.dumps(ship))
-
-        t = datetime.now() - s
-        logger.info("get_ship_status complete in %.2f seconds" % t.seconds)
-
-
     return ship
