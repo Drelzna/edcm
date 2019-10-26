@@ -1,11 +1,8 @@
 import logging
-import colorlog
 from time import sleep
 from edcm.directinput import press_key, release_key
 
-logging.basicConfig(filename='edcm.log', level=logging.DEBUG)
-logger = colorlog.getLogger()
-logger.setLevel(logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 KEY_MOD_DELAY = 0.010
 KEY_DEFAULT_DELAY = 0.200

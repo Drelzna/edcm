@@ -18,7 +18,7 @@ WINDOW_NAME = "Elite - Dangerous (CLIENT)"
 
 
 def get_hwnd_info(hwnd):
-    logger.info("get_hwnd_info(%s)" % hwnd)
+    logger.debug("edcm.windows.get_hwnd_info(%s)" % hwnd)
     dim = {}
     if hwnd:
         rect = win32gui.GetWindowRect(hwnd)
@@ -30,11 +30,8 @@ def get_hwnd_info(hwnd):
     return dim
 
 
-def get_dimensions(rect):
-    logger.info("get_dimensions(%s)" % rect)
-
-
 def print_hwnd_info(hwnd):
+    logger.debug("edcm.windows.get_hwnd_info(hwnd=%s)" % hwnd)
     if hwnd:
         dim = get_hwnd_info(hwnd)
         logger.info("Window ( %s / %s ):" % (win32gui.GetClassName(hwnd), win32gui.GetWindowText(hwnd)))
@@ -43,7 +40,7 @@ def print_hwnd_info(hwnd):
 
 
 def get_hwnd_by_pid(pid=None):
-    logger.info("get_hwnd_by_pid(%s)" % pid)
+    logger.debug("edcm.windows.get_hwnd_by_pid(pid=%s)" % pid)
 
     def callback(hwnd, hwnds):
         if win32gui.IsWindowVisible(hwnd) and win32gui.IsWindowEnabled(hwnd):
@@ -63,7 +60,8 @@ def get_hwnd(class_name=None, window_name=WINDOW_NAME):
 
 
 def get_elite_hwnd():
-    logger.info("get_elite_hwnd()")
+    logger.debug("edcm.windows.get_elite_hwnd()")
+
     for proc in psutil.process_iter():
         if proc.name() == EXECUTABLE:
             pid = proc.pid
@@ -74,13 +72,13 @@ def get_elite_hwnd():
 
 
 def get_elite_hwindc():
-    logger.info("get_elite_hwindc")
+    logger.debug("edcm.windows.get_elite_hwndc()")
     hwnd = get_elite_hwnd()
     return win32gui.GetWindowDC(hwnd)
 
 
 def set_elite_active_window(elite_hwnd=None):
-    logger.info("set_elite_active_window()")
+    logger.debug("edcm.windows.set_elite_active_window(elite_hwnd=%s)" % elite_hwnd)
     if not elite_hwnd:
         elite_hwnd = get_elite_hwnd()
     foreground_window = get_foreground_window()
@@ -94,7 +92,7 @@ def set_elite_active_window(elite_hwnd=None):
 
 
 def set_active_window(hwnd=None):
-    logger.info("set_active_window(%s)" % hwnd)
+    logger.debug("edcm.windows.set_active_window(hwnd=%s)" % hwnd)
     if hwnd:
         win32gui.SetForegroundWindow(hwnd)
         win32gui.BringWindowToTop(hwnd)
@@ -103,24 +101,26 @@ def set_active_window(hwnd=None):
 
 
 def get_foreground_window():
-    logger.info("get_foreground_window()")
+    logger.debug("edcm.windows.get_foreground_window()")
     fgw = win32gui.GetForegroundWindow()
     return win32gui.GetWindowText(fgw)
 
 
 def get_my_hwnd():
-    print("get_my_hwnd()")
+    logger.debug("edcm.windows.get_my_hwnd()")
     # try executing pid
     pid = os.getpid()
-    print("my pid = %s" % pid)
+    logger.debug("edcm.windows.get_my_hwnd: os.getpid() = %s" % pid)
     m = get_hwnd_by_pid(pid)
     if len(m) == 1:
+        logger.debug("edcm.windows.get_my_hwnd: return %s" % m[0])
         return m[0]
-    print("hwnd not found, looking for parent pid")
+    logger.debug("edcm.windows.get_my_hwnd: hwnd not found, looking for parent pid")
     p = psutil.Process(pid)
     ppid = p.ppid()
     m = get_hwnd_by_pid(ppid)
     if len(m) == 1:
+        logger.debug("edcm.windows.get_my_hwnd: return %s" % m[0])
         return m[0]
-    print("hwnd not found")
+    logger.debug("edcm.windows.get_my_hwnd: hwnd not found.")
     return False

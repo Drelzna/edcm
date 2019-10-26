@@ -1,9 +1,9 @@
-import colorlog
+import logging
 from time import sleep
 from edcm.bindings import get_bindings
 from edcm.control import send
 
-logger = colorlog.getLogger()
+logger = logging.getLogger(__name__)
 
 keymap =  get_bindings()
 

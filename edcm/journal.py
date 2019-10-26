@@ -1,11 +1,10 @@
 import logging
-import colorlog
 import json
 from datetime import datetime
 from os import environ, listdir
 from os.path import join, isfile, getmtime
 
-logger = colorlog.getLogger()
+logger = logging.getLogger(__name__)
 
 
 def get_latest_journal(player_journal_location=None):

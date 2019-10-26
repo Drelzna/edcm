@@ -24,38 +24,30 @@ assert screen_size is not None
 logger.info("screen_size['left'] = %s, screen_size['top'] = %s, screen_size['width'] = %s, screen_size['height'] = %s",
             screen_size['left'], screen_size['top'], screen_size['width'], screen_size['height'])
 
+viewer = cv2.namedWindow("Test Screen",cv2.WINDOW_NORMAL)
+
+
 windows.set_elite_active_window()
 
-img = screen.get_screen()
-assert img is not None
-
-filter_orange = screen.filter_orange(None, testing=True)
-filter_blue = screen.filter_blue(None, testing=True)
-filter_bright_image = screen.filter_bright(None, testing=True)
-
-filter_sun = screen.filter_sun(None, testing=True)
-logger.info("filter_sun white == %.2f" % sum(filter_sun == 255))
-logger.info("filter_sun black == %.2f" % sum(filter_sun != 255))
-
-interval = 3
-start_time = time.time()
-fps = 0
-img = screen.get_screen(screen_size)
-cv2.imshow("test_screen.py", img)
 while True:
+    screen_size = screen.get_elite_size()
+    windows.set_elite_active_window()
     img = screen.get_screen(screen_size)
-    fps += 1
-    elapsed = time.time() - start_time
-    if elapsed >= interval:
-        print("FPS: ", fps / elapsed)
-        # set fps again to zero
-        fps = 0
-        # set start time to current time again
-        start_time = time.time()
+    cv2.imshow("test_screen.py", img)
+    test_hwnd = windows.get_hwnd("Test Screen")
+    windows.set_active_window(test_hwnd)
     # Press "q" to quit
     if cv2.waitKey(25) & 0xFF == ord("q"):
         cv2.destroyAllWindows()
         break
+
+filter_orange = screen.filter_orange(img, testing=True)
+filter_blue = screen.filter_blue(img, testing=True)
+filter_bright_image = screen.filter_bright(img, testing=True)
+
+filter_sun = screen.filter_sun(img, testing=True)
+logger.info("filter_sun white == %.2f" % sum(filter_sun == 255))
+logger.info("filter_sun black == %.2f" % sum(filter_sun != 255))
 
 hsv_image = screen.hsv_slider(bandw=True)
 

@@ -1,12 +1,12 @@
 import os
 import sys
+import logging
 
-import colorlog
+
+logger = logging.getLogger(__name__)
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from edcm import journal
-
-logger = colorlog.getLogger()
 
 j = journal.get_latest_journal()
 assert j is not None
@@ -18,6 +18,8 @@ assert ship_status is not None
 logger.info("ship_status:\n"
             "time = %s\n"
             "type = %s\n"
+            "cargo_count = %s\n"
+            "cargo_capacity = %s\n"
             "location = %s\n"
             "star_class = %s\n"
             "target = %s\n"
@@ -27,6 +29,8 @@ logger.info("ship_status:\n"
             "is_scooping = %s\n" %
             (ship_status['time'],
              ship_status['type'],
+             ship_status['cargo_count'],
+             ship_status['cargo_capacity'],
              ship_status['location'],
              ship_status['star_class'],
              ship_status['target'],

@@ -1,11 +1,27 @@
+import logging
+import colorlog
 import os
 import sys
-import colorlog
 import win32con
 import win32gui
 
-
+logging.basicConfig(filename='edcm.log', level=logging.DEBUG)
 logger = colorlog.getLogger()
+logger.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+handler.setLevel(logging.INFO)
+handler.setFormatter(
+    colorlog.ColoredFormatter('%(log_color)s%(levelname)-8s%(reset)s %(white)s%(message)s',
+                              log_colors={
+                                  'DEBUG': 'fg_bold_cyan',
+                                  'INFO': 'fg_bold_green',
+                                  'WARNING': 'bg_bold_yellow,fg_bold_blue',
+                                  'ERROR': 'bg_bold_red,fg_bold_white',
+                                  'CRITICAL': 'bg_bold_red,fg_bold_yellow',
+                              }, secondary_log_colors={}
+
+                              ))
+logger.addHandler(handler)
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from edcm import navigation, windows, screen, galaxy_map
@@ -20,12 +36,52 @@ logger.info("screen_size['left'] = %s, screen_size['top'] = %s, screen_size['wid
 
 windows.set_elite_active_window()
 
-galaxy_map.set_destination("SIRIUS")
+# galaxy_map.set_destination("NANOMAM")
+# galaxy_map.set_sys_dest(bookmark=1)
 
-navigation.autopilot()
+# navigation.auto_launch()
 
-win32gui.ShowWindow(hwnd, win32con.SW_SHOWNORMAL)
-try:
-    win32gui.SetForegroundWindow(hwnd)
-except Exception as e:
-    logger.fatal(e)
+# compass_image = navigation.get_compass_image(testing=True)
+
+sun_percent = navigation.sun_percent()
+logger.info("sun_percent == %s" % sun_percent)
+
+compass_image, compass_height, compass_width = navigation.get_compass_image(testing=False)
+# screen.hsv_slider(bandw=True)
+
+nav_point = navigation.get_navpoint_coordinates(testing=False)
+logger.info("navpoint_coordinates = %s" % nav_point)
+
+nav_check = navigation.check_coordinates(nav_point)
+logger.info("check_coordinates %s = %s" % (nav_point, nav_check))
+
+navpoint_offset = navigation.get_navpoint_offset()
+logger.info("navpoint_offset == %s" % navpoint_offset)
+
+center = {'x': 0, 'y': 0}
+direction = navigation.compare_coordinates(navpoint_offset, center)
+logger.info("direction = %s" % direction)
+
+dest_point = navigation.get_destination_coordinates(testing=False)
+logger.info("destination_coordinates = %s" % dest_point)
+
+dest_check = navigation.check_coordinates(dest_point)
+logger.info("check_coordinates %s = %s" % (dest_point, dest_check))
+
+destination_offset = navigation.get_destination_offset(average=True)
+logger.info("destination_offset == %s" % destination_offset)
+
+center = {'x': 0, 'y': 0}
+direction = navigation.compare_coordinates(destination_offset, center)
+logger.info("direction = %s" % direction)
+
+# navigation.autopilot()
+
+# navigation.suprrcruise()
+
+if hwnd:
+    try:
+        win32gui.ShowWindow(hwnd, win32con.SW_SHOWNORMAL)
+        win32gui.SetForegroundWindow(hwnd)
+    except Exception as e:
+        logger.fatal(e)

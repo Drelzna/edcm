@@ -15,19 +15,18 @@ logger = colorlog.getLogger()
 
 
 def get_screen_size():
-    logger.info("get_screen_size()")
-    screen_size = {}
-    screen_size['width'] = win32api.GetSystemMetrics(win32con.SM_CXVIRTUALSCREEN)
-    screen_size['height'] = win32api.GetSystemMetrics(win32con.SM_CYVIRTUALSCREEN)
-    screen_size['left'] = win32api.GetSystemMetrics(win32con.SM_XVIRTUALSCREEN)
-    screen_size['top'] = win32api.GetSystemMetrics(win32con.SM_YVIRTUALSCREEN)
+    logger.debug("edcm.screen.get_screen_size()")
+    screen_size = {'width': win32api.GetSystemMetrics(win32con.SM_CXVIRTUALSCREEN),
+                   'height': win32api.GetSystemMetrics(win32con.SM_CYVIRTUALSCREEN),
+                   'left': win32api.GetSystemMetrics(win32con.SM_XVIRTUALSCREEN),
+                   'top': win32api.GetSystemMetrics(win32con.SM_YVIRTUALSCREEN)}
     logger.debug("return: %d, %d, %d, %d" % (
         screen_size['left'], screen_size['top'], screen_size['width'], screen_size['height']))
     return screen_size
 
 
 def get_elite_size():
-    logger.info("get_elite_size()")
+    logger.debug("edcm.screen.get_elite_size()")
     screen_size = {}
     elite_hwnd = windows.get_elite_hwnd()
     left, top, x2, y2 = win32gui.GetWindowRect(elite_hwnd)
@@ -41,19 +40,17 @@ def get_elite_size():
 
 
 def get_elite_cockpit_size(screen_size=None):
+    logger.debug("edcm.screen.get_elite_cockpit_size(screen_size=%s)" % screen_size)
     if not screen_size:
         screen_size = get_elite_size()
 
-    # reduce to cockpit view
-    screen_size['left'] = round(int(screen_size['width']) * (1 / 3))
-    screen_size['top'] = round(int(screen_size['height']) * (1 / 3))
-    screen_size['width'] = round(int(screen_size['width']) * (2 / 3))
-    screen_size['height'] = round(int(screen_size['height']) * (2 / 3))
+    # reduce to cockpit view, upper 3/4 of screen
+    screen_size['height'] = round(int(screen_size['height']) * (3 / 4))
     return screen_size
 
 
 def get_screen(screen_size=None):
-    # logger.info("get_screen(screen_size=%s)" % screen_size)
+    logger.debug("edcm.screen.get_screen(screen_size=%s)" % screen_size)
     if not screen_size:
         screen_size = get_elite_size()
 
@@ -97,7 +94,7 @@ def get_screen(screen_size=None):
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
-    logger.info("resource_path(%s)" % relative_path)
+    logger.debug("edcm.screen.resource_path(relative_path=%s)" % relative_path)
     try:
         # PyInstaller creates a temp folder and stores path in _MEIPASS
         base_path = sys._MEIPASS
@@ -112,12 +109,22 @@ def callback(x):
     pass
 
 
+def show_image(image=None):
+    if image is not None:
+        while True:
+            cv2.imshow('edcm.navigation.show_image()', image)
+            if cv2.waitKey(25) & 0xFF == ord('q'):
+                cv2.destroyAllWindows()
+                break
+
+
 def equalize(image):
     """
     convert the incoming image to grey scale and apply Contrast Limited Adaptive Histogram Equalization
     :param image: incoming screen grab image
     :return: processed image, BGR2GRAY+CLAHE
     """
+    logger.debug("edcm.screen.equalize(image=%s)" % image)
     # Load the image in greyscale
     img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     # create a CLAHE object (Arguments are optional).
@@ -128,52 +135,70 @@ def equalize(image):
 
 
 def filter(image=None, testing=False, equalize_it=False, f1=None, f2=None):
-    while True:
-        img = image.copy()
+    logger.debug("edcm.screen.filter(image=%s, testing=%s, equalize_it=%s, f1=%s, f2=%s)" % (
+        image, testing, equalize_it, f1, f2))
 
-        if equalize_it:
-            equalized = equalize(img)
-            equalized = cv2.cvtColor(equalized, cv2.COLOR_GRAY2BGR)
-            img = cv2.cvtColor(equalized, cv2.COLOR_BGR2HSV)
+    img = image.copy()
 
-        filtered = cv2.inRange(img, np.array(f1), np.array(f2))
+    # converting from BGR to HSV color space
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
+    if equalize_it:
+        equalized = equalize(img)
+        # img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        equalized = cv2.cvtColor(equalized, cv2.COLOR_GRAY2BGR)
         if testing:
-            cv2.imshow('Filtered', filtered)
-            if cv2.waitKey(25) & 0xFF == ord('q'):
-                cv2.destroyAllWindows()
-                break
-        else:
-            break
+            show_image(equalized)
+
+    # converting from BGR to HSV color space
+    # img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+    filtered = cv2.inRange(img, np.array(f1), np.array(f2))
+
+    if testing:
+        show_image(filtered)
 
     return filtered
 
 
 def filter_bright(image=None, testing=False):
+    logger.debug("edcm.screen.filter_bright(image=%s, testing=%s" % (image, testing))
     f1 = [0, 0, 215]
     f2 = [0, 0, 255]
     return filter(image=image, testing=testing, equalize_it=True, f1=f1, f2=f2)
 
 
 def filter_sun(image=None, testing=False):
+    logger.debug("edcm.screen.filter_sun(image=%s, testing=%s" % (image, testing))
     f1 = [0, 100, 240]
     f2 = [180, 255, 255]
     return filter(image=image, testing=testing, equalize_it=True, f1=f1, f2=f2)
 
 
-def filter_orange(image=None, testing=False):
-    f1 = [15, 220, 220]
-    f2 = [30, 255, 255]
+def filter_destination(image=None, testing=False):
+    logger.debug("edcm.screen.filter_destination(image=%s, testing=%s" % (image, testing))
+    # use hsv_slider to attain viewable image containing the destination reticule
+    f1 = [0, 0, 128]  # low pass
+    f2 = [180, 255, 255]  # high pass
     return filter(image=image, testing=testing, equalize_it=True, f1=f1, f2=f2)
 
 
+def filter_compass(image=None, testing=False):
+    logger.debug("edcm.screen.filter_blue(image=%s, testing=%s" % (image, testing))
+    f1 = [0, 0, 16]
+    f2 = [180, 255, 255]
+    return filter(image=image, testing=testing, equalize_it=False, f1=f1, f2=f2)
+
+
 def filter_blue(image=None, testing=False):
-    f1 = [0, 0, 200]
+    logger.debug("edcm.screen.filter_blue(image=%s, testing=%s" % (image, testing))
+    f1 = [0, 100, 200]
     f2 = [180, 100, 255]
     return filter(image=image, testing=testing, equalize_it=True, f1=f1, f2=f2)
 
 
-def hsv_slider(bandw=False):
+def hsv_slider(screen_size=None, bandw=False):
+    logger.debug("edcm.screen.hsv_slider(screen_size=%s,bandw=%s)" % (screen_size, bandw))
     cv2.namedWindow('image')
 
     ilowH = 0
@@ -195,13 +220,10 @@ def hsv_slider(bandw=False):
     cv2.createTrackbar('highV', 'image', ihighV, 255, callback)
 
     while (True):
-        screen_size = get_elite_size()
+        if screen_size is not None:
+            screen_size = get_elite_size()
 
         # grab the frame
-        frame_x1 = screen_size['width'] * 5 / 16
-        frame_y1 = screen_size['height'] * 5 / 8
-        frame_x2 = screen_size['width'] * 2 / 4
-        frame_y2 = screen_size['height'] * 15 / 16
         frame = get_screen(screen_size)
 
         if bandw:

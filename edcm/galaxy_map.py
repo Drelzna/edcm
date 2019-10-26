@@ -1,13 +1,10 @@
 import logging
-import colorlog
 from time import sleep
 from edcm.directinput import SCANCODE
 from edcm.bindings import get_bindings
 from edcm.control import send
 
-logging.basicConfig(filename='edcm.log', level=logging.DEBUG)
-logger = colorlog.getLogger()
-logger.setLevel(logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 
 keymap =  get_bindings()
@@ -36,10 +33,12 @@ def set_destination(destination_system="Sol"):
     send(keymap['UI_Up'])
     send(keymap['UI_Select'])  # select SEARCH Box
 
-    # type dest string in search box followed by return
+    # type destination string in search box followed by return
     for c in destination_system:
         direct_key = {}
         direct_key['key'] = SCANCODE["DIK_" + c.upper()]
+        if c.isspace():
+            direct_key['key'] = SCANCODE["DIK_SPACE"]
         send(direct_key)
         sleep(.1)
     send(keymap['RET'])
@@ -53,8 +52,3 @@ def set_destination(destination_system="Sol"):
 
     sleep(1)
     close_galaxy_map()
-
-
-
-
-
