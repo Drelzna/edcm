@@ -1,6 +1,5 @@
 import os
 import sys
-import time
 
 import cv2
 import win32con
@@ -24,7 +23,7 @@ assert screen_size is not None
 logger.info("screen_size['left'] = %s, screen_size['top'] = %s, screen_size['width'] = %s, screen_size['height'] = %s",
             screen_size['left'], screen_size['top'], screen_size['width'], screen_size['height'])
 
-viewer = cv2.namedWindow("Test Screen",cv2.WINDOW_NORMAL)
+viewer = cv2.namedWindow("Test Screen", cv2.WINDOW_NORMAL)
 
 
 windows.set_elite_active_window()
@@ -41,7 +40,6 @@ while True:
         cv2.destroyAllWindows()
         break
 
-filter_orange = screen.filter_orange(img, testing=True)
 filter_blue = screen.filter_blue(img, testing=True)
 filter_bright_image = screen.filter_bright(img, testing=True)
 

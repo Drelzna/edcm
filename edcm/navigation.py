@@ -1,3 +1,4 @@
+import json
 import logging
 from math import degrees, atan
 from time import sleep, time
@@ -9,15 +10,15 @@ from edcm import windows
 from edcm.bindings import get_bindings, get_scanner
 from edcm.control import send
 from edcm.journal import get_ship_status
-from edcm.screen import resource_path, show_image, filter_sun, get_elite_size, get_screen, equalize, \
-    get_elite_cockpit_size, filter_destination, filter_compass
+from edcm.screen import resource_path, show_image, filter_sun, get_elite_size, get_screen, equalize, filter_destination
 
 logger = logging.getLogger(__name__)
 
 # SHIP_FACTOR = 1  # highly maneuverable small ships
 # SHIP_FACTOR = 1.5  # medium ships
 # SHIP_FACTOR = 2  # medium ships
-SHIP_FACTOR = 3  # large and slow handling
+# SHIP_FACTOR = 3  # large and slow ships
+SHIP_FACTOR = 2.2  # CUTTER
 
 SCOOPABLE_STAR_TYPES = ['A', 'B', 'F', 'G', 'K', 'M', 'O']
 
@@ -92,8 +93,10 @@ def get_compass_image(testing=False):
         show_image(match_image)
 
     if pt is not None:
-        compass_image = hud_image[pt[1] - doubt: pt[1] + compass_height + doubt,
-                        pt[0] - doubt: pt[0] + compass_width + doubt].copy()
+        compass_image = hud_image[
+                        pt[1] - doubt: pt[1] + compass_height + doubt, pt[0] - doubt: pt[0] + compass_width + doubt
+                        ].copy()
+
         if testing:
             logger.info("show_image(compass_image)")
             show_image(compass_image)
@@ -101,7 +104,7 @@ def get_compass_image(testing=False):
     else:
         logger.error("edcm.navigation.get_compass_image() failed.")
 
-    return []
+    return [None, None, None]
 
 
 def get_image_match(image, template):
@@ -149,7 +152,7 @@ def reverse_direction():
 
     facing_forward = False
 
-    handling = 2 + ( 2 * SHIP_FACTOR )
+    handling = 2 + (2 * SHIP_FACTOR)
     if get_ship_status()['status'] == 'in_space':
         handling = handling * .5
 
@@ -179,7 +182,7 @@ def get_navpoint_coordinates(testing=False):
         return None
 
     logger.info("edcm.navigation.get_navpoint_coordinates: compass_height, compass_width = %.2f, %.2f" % (
-    compass_height, compass_height))
+        compass_height, compass_height))
     center = {'x': round(int(compass_width) * .5), 'y': round(int(compass_height) * .5)}
     logger.info("edcm.navigation.get_navpoint_coordinates: center = %s" % center)
     coordinates = None
@@ -268,9 +271,13 @@ def compare_coordinates(point_a, point_b, threshold=3):
      DOWN 10
      ON
     """
+    logger.info("edcm.navigation.compare_coordinates(point_a=%s, point_b=%s, threshold=%s)" % (
+        str(point_a), str(point_b), threshold))
     direction = []
 
     # LEFT/RIGHT
+    logger.info("point_a[x] = %.f" % point_a['x'])
+    logger.info("point_b[x] = %.f" % point_b['x'])
     if point_b['x'] >= 0:  # destination is right of center
         if point_a['x'] >= 0:  # starting point is also right
             # check if distance between point_b - point_a is above threshold
@@ -280,98 +287,125 @@ def compare_coordinates(point_a, point_b, threshold=3):
             if abs(int(point_b['x']) - int(point_a['x'])) >= threshold:
                 if point_a['x'] < point_b['x']:
                     # starting point_a is left of point_b, go right
-                    vector = "RIGHT %.1f" % (int(point_b['x']) - int(point_a['x']))
-                    direction.append(vector)
+                    direction.append("RIGHT")
+                    direction.append(int(point_b['x']) - int(point_a['x']))
                 else:
-                    vector = "LEFT %.1f" % (int(point_a['x']) - int(point_b['x']))
-                    direction.append(vector)
+                    direction.append("LEFT")
+                    direction.append(int(point_a['x']) - int(point_b['x']))
             else:
-                direction.append('ON')
+                direction.append("ON")
+                direction.append(int(point_b['x']) - int(point_a['x']))
         else:
             # starting point is left of center, must go right
             distance = abs(int(point_b['x']) + int(point_a['x']))
             if distance > threshold:
-                vector = "RIGHT %.1f" % distance
+                direction.append("RIGHT")
+                direction.append(distance)
             else:
-                vector = "ON"
-            direction.append(vector)
+                direction.append("ON")
+                direction.append(distance)
     else:
         # destination is left of center
         if point_a['x'] <= 0:  # starting_point is also left
-            if point_a['x'] < point_b['x']:
+            if point_a['x'] <= point_b['x']:
                 distance = abs(int(point_a['x']) - int(point_b['x']))
                 if distance > threshold:
-                    vector = "RIGHT %.1f" % distance
+                    direction.append("RIGHT")
+                    direction.append(distance)
                 else:
-                    vector = "ON"
-                direction.append(vector)
+                    direction.append("ON")
+                    direction.append(distance)
             else:
                 distance = abs(int(point_b['x']) - int(point_a['x']))
                 if distance > threshold:
-                    vector = "LEFT %.1f" % distance
+                    direction.append("LEFT")
+                    direction.append(distance)
                 else:
-                    vector = "ON"
-                direction.append(vector)
+                    direction.append("ON")
+                    direction.append(distance)
         else:
             # starting point is right of center, must go left
             distance = abs(int(point_b['x']) - int(point_a['x']))
             if distance > threshold:
-                vector = "LEFT %.1f" % distance
+                direction.append("LEFT")
+                direction.append(distance)
             else:
-                vector = "ON"
-            direction.append(vector)
+                direction.append("ON")
+                direction.append(distance)
 
     # UP/DOWN
+    logger.info("point_a[y] = %.f" % point_a['y'])
+    logger.info("point_b[y] = %.f" % point_b['y'])
     if point_b['y'] >= 0:  # destination is above of center
+        logger.info("edcm.navigation.compare_coordinates: point_b is above center")
         if point_a['y'] >= 0:  # starting point is also above
+            logger.info("edcm.navigation.compare_coordinates: point_a is also above center")
             # check if distance between point_b - point_a is above threshold
             logger.info("edcm.navigation.compare_coordinates: abs( int(%.2f) - int(%.2f) )"
                         % (point_b['y'], point_a['y']))
             logger.info("edcm.navigation.compare_coordinates: %.2f" % abs(int(point_b['y']) - int(point_a['y'])))
-            if abs(int(point_b['y']) - int(point_a['y'])) >= threshold:
-                if point_a['x'] < point_b['x']:
-                    # starting point_a is below point_b, go UP
-                    vector = "UP %.1f" % (int(point_b['y']) - int(point_a['y']))
-                    direction.append(vector)
+            distance = abs(int(point_b['y']) - int(point_a['y']))
+            if distance > threshold:
+                if point_a['y'] < point_b['y']:
+                    logger.info("edcm.navigation.compare_coordinates: point_a is below point_b, must go UP")
+                    # point_a is below point_b, go UP
+                    direction.append("UP")
+                    direction.append(distance)
                 else:
+                    logger.info("edcm.navigation.compare_coordinates: point_a is above point_b, must go DOWN")
                     # starting point_a is above point_b, go DOWN
-                    vector = "DOWN %.1f" % (int(point_a['y']) - int(point_b['y']))
-                    direction.append(vector)
+                    direction.append("DOWN")
+                    direction.append(int(point_a['y']) - int(point_b['y']))
             else:
                 direction.append('ON')
+                direction.append(distance)
         else:
+            logger.info("edcm.navigation.compare_coordinates: point_a is below point_b, must go UP")
             # starting point is below center, destination is above, must go UP
             distance = abs(int(point_b['y'])) - int(point_a['y'])
             if distance > threshold:
-                vector = "UP %.1f" % distance
+                direction.append("UP")
+                direction.append(distance)
+                # vector = "UP %.1f" % distance
             else:
-                vector = "ON"
-            direction.append(vector)
+                direction.append("ON")
+                direction.append(distance)
     else:
         # destination is below center
+        logger.info("edcm.navigation.compare_coordinates: point_b is below center")
         if point_a['y'] <= 0:  # starting_point is also below
+            logger.info("edcm.navigation.compare_coordinates: point_a is also below center")
             if point_a['y'] < point_b['y']:
+                logger.info("edcm.navigation.compare_coordinates: -point_a is below -point_b, must go UP")
                 distance = abs(int(point_a['y']) - int(point_b['y']))
                 if distance > threshold:
-                    vector = "UP %.1f" % distance
+                    direction.append("UP")
+                    direction.append(distance)
                 else:
-                    vector = "ON"
-                direction.append(vector)
+                    direction.append("ON")
+                    direction.append(distance)
             else:
+                logger.info("edcm.navigation.compare_coordinates: -point_a is above -point_b, must go DOWN")
                 distance = abs(int(point_b['y']) - int(point_a['y']))
                 if distance > threshold:
-                    vector = "DOWN %.1f" % distance
+                    direction.append("DOWN")
+                    direction.append(distance)
+                    # vector = "DOWN %.1f" % distance
                 else:
-                    vector = "ON"
-                direction.append(vector)
+                    direction.append("ON")
+                    direction.append(distance)
         else:
-            # starting point is abpve center, must go DOWN
+            # starting point is above center, must go DOWN
+            logger.info(
+                "edcm.navigation.compare_coordinates: point_a is above center, point_b is below, we must go DOWN")
             distance = abs(int(point_b['y']) - int(point_a['y']))
             if distance > threshold:
-                vector = "DOWN %.1f" % distance
+                direction.append("DOWN")
+                direction.append(distance)
+                # vector = "DOWN %.1f" % distance
             else:
-                vector = "ON"
-            direction.append(vector)
+                direction.append("ON")
+                direction.append(distance)
 
     logger.info("edcm.navigation.compare_coordinates: direction = %s" % direction)
     logger.info("edcm.navigation.compare_coordinates() completed.")
@@ -405,10 +439,11 @@ def get_navpoint_offset(testing=False, average=False):
                     logger.info("edcm.navigation.get_navpoint_offset: return last poll, navigation_offset = %s" % avg)
                     return pt
 
-            if (tries % 10) == 0:
-                reset()
+        tries += 1
 
-            tries += 1
+        logger.info("tries %d <=> retries %d, tries mod 3 = %.1f" % (tries, retries, tries % 3))
+        if (tries % 3) == 0:
+            reset()
 
     logger.info("edcm.navigation.get_navpoint_offset: failure")
     return None
@@ -416,21 +451,14 @@ def get_navpoint_offset(testing=False, average=False):
 
 def get_destination_coordinates(testing=False):
     logger.info("edcm.navigation.get_destination_coordinates()")
-    pt = (0, 0)
+    coordinates = (0, 0)
 
     destination_template = cv2.imread(resource_path("..\\templates\\destination.png"), cv2.IMREAD_GRAYSCALE)
     destination_width, destination_height = destination_template.shape[::-1]
 
-    logger.info("edcm.navigation.get_destination_coordinates: screen_size = get_elite_cockpit_size()")
-    screen_size = get_elite_cockpit_size()
-    logger.info("screen_size: left = %s, top = %s, width = %s, height = %s"
-                % (screen_size['left'], screen_size['top'], screen_size['width'], screen_size['height']))
+    logger.info("edcm.navigation.get_destination_coordinates: screen_size = get_elite_size()")
+    screen_size = get_elite_size()
 
-    # capture canopy view
-    # screen_size['left'] = round(int(screen_size['width']) * (1 / 3))
-    # screen_size['top'] = round(int(screen_size['height']) * (1 / 3))
-    # screen_size['width'] = round(int(screen_size['width']) * (2 / 3))
-    # screen_size['height'] = round(int(screen_size['height']) * (2 / 3))
     logger.info("screen_size: left = %s, top = %s, width = %s, height = %s"
                 % (screen_size['left'], screen_size['top'], screen_size['width'], screen_size['height']))
 
@@ -453,21 +481,38 @@ def get_destination_coordinates(testing=False):
 
     match = get_image_match(mask, destination_template)
 
-    threshold = 0.25
+    threshold = .3
     loc = where(match >= threshold)
     for point in zip(*loc[::-1]):
-        pt = point
+        coordinates = point
         if testing:
-            cv2.rectangle(mask, pt, (pt[0] + destination_width, pt[1] + destination_height), (255, 255, 255), 2)
+            cv2.rectangle(mask, coordinates, (coordinates[0] + destination_width, coordinates[1] + destination_height),
+                          (255, 255, 255), 2)
 
     if testing:
         show_image(mask)
 
-    final_x = (pt[0] + ((1 / 2) * destination_width)) - ((1 / 2) * screen_size['width'])
-    final_y = ((1 / 2) * screen_size['height']) - (pt[1] + ((1 / 2) * destination_height))
-    # final_x = (pt[0] + ((1 / 2) * destination_width)) - ((1 / 2) * width)
-    # final_y = ((1 / 2) * height) - (pt[1] + ((1 / 2) * destination_height))
-    return {'x': final_x, 'y': final_y}
+    if coordinates is not None:
+        # coordinates are the upper left corner of the matching image.
+        # FINAL coordinates include +1/2 the image width and -1/2 the image height
+        logger.info("edcm.navigation.get_navpoint_coordinates: "
+                    "final_x = (coordinates[x] + ( destination_width * .5 ) ) - ( screen_width * .5 )")
+        final_x = (coordinates[0] + (destination_width * .5)) - (screen_size['width'] * .5)
+        logger.info("edcm.navigation.get_navpoint_coordinates: "
+                    "final_x = ( %.2f + ( %.2f * .5 )) - ( %.2f * .5 ) = %.2f" %
+                    (coordinates[0], destination_width, screen_size['width'], final_x))
+
+        logger.info("edcm.navigation.get_navpoint_coordinates: "
+                    "final_y = ( screen_height * .5 ) - ( coordinates['y'] + (destination_height * .5 )) ")
+        final_y = (screen_size['height'] * .5) - (coordinates[1] + (destination_height * .5))
+        logger.info("edcm.navigation.get_navpoint_coordinates: "
+                    "final_y = ( %.2f * .5 ) - ( ( %.2f * .5 ) + %.2f ) = %.2f" %
+                    (screen_size['height'], destination_height, coordinates[1], final_y))
+
+        return {'x': final_x, 'y': final_y}
+    else:
+        logger.error("failed to identify coordinates.")
+        return None
 
 
 def get_destination_offset(testing=False, average=False):
@@ -496,7 +541,7 @@ def get_destination_offset(testing=False, average=False):
                 logger.info("edcm.navigation.get_destination_offset: return last poll, destination_offset = %s" % avg)
                 return pt
 
-        if (tries % 10) == 0:
+        if (tries % 3) == 0:
             logger.info("Tried %i times, resetting position.." % tries)
             reset()
 
@@ -519,12 +564,218 @@ def x_angle(point=None):
         return -90 - result
 
 
+def navigation_align():
+    logger.info("edcm.navigation.navigation_align()")
+
+    center = {'x': 0, 'y': 0}
+
+    ship_status = get_ship_status()['status']
+
+    if not (ship_status == 'in_supercruise' or ship_status == 'in_space'):
+        logger.error('align=err1')
+        raise Exception('align error 1')
+
+    while sun_percent() > 5:
+        send(keymap['PitchUpButton'], state=1)
+    send(keymap['PitchUpButton'], state=0)
+
+    logging.info("edcm.navigation.align: set speed for maneuvering")
+    send(keymap['SetSpeed50'])
+
+    aligned = False
+    x_axis_aligned = False
+    x_offset = 0
+    pitch_rate = .5
+    y_axis_aligned = False
+    y_offset = 0
+    roll_rate = .25
+
+    while not aligned:
+
+        offset = get_navpoint_offset()
+        direction = compare_coordinates(center, offset)
+
+        logger.info("compare_coordinates(center vs offset) ( %s vs %s ) = %s" % (center, offset, direction))
+
+        if direction[0]:
+            logger.info("direction[0] == %s" % direction[0])
+            if direction[0] != "ON":
+                logger.info("x_axis direction = %s" % direction[0])
+                if x_offset != 0:
+                    logger.info("previous heading = %.f" % x_offset)
+                if str(direction[0]).startswith("LEFT"):
+                    logger.info("Rotate Left")
+                    last_offset = x_offset
+                    try:
+                        x_offset = float(str(direction[1]))
+                    except ValueError:
+                        logger.error("compare_coordinates.direction did not parse (%s vs %s) = %s" % (
+                            center, direction[2], direction[3]))
+                    if x_offset >= last_offset:
+                        send(keymap['RollLeftButton'], hold=roll_rate)
+                elif str(direction[0]).startswith("RIGHT"):
+                    logger.info("Rotate Right")
+                    last_offset = x_offset
+                    try:
+                        x_offset = float(str(direction[1]))
+                    except ValueError:
+                        logger.error("compare_coordinates.direction did not parse (%s vs %s) = %s" % (
+                            center, direction[2], direction[3]))
+                    if x_offset >= last_offset:
+                        send(keymap['RollRightButton'], hold=roll_rate)
+            else:
+                x_axis_aligned = True
+                x_offset = 0
+
+        if direction[2]:
+            logger.info("direction[1] == %s" % direction[1])
+            if direction[1] != "ON":
+                logger.info("y_axis direction = %s" % direction[1])
+            if y_offset != 0:
+                logger.info("previous heading = %.f" % y_offset)
+            if str(direction[2]).startswith("UP"):
+                logger.info("Pitch Up")
+                last_offset = y_offset
+                try:
+                    y_offset = float(str(direction[3]))
+                except ValueError:
+                    logger.error("compare_coordinates.direction did not parse (%s vs %s) = %s" % (
+                        center, direction[2], direction[3]))
+                if y_offset >= last_offset:
+                    send(keymap['PitchUpButton'], hold=pitch_rate)
+            elif str(direction[2]).startswith("DOWN"):
+                logger.info("Pitch Down")
+                last_offset = y_offset
+                try:
+                    y_offset = float(str(direction[3]))
+                except ValueError:
+                    logger.error("compare_coordinates.direction did not parse (%s vs %s) = %s" % (
+                        center, direction[2], direction[3]))
+                if y_offset >= last_offset:
+                    send(keymap['PitchDownButton'], hold=pitch_rate)
+            else:
+                y_axis_aligned = True
+                y_offset = 0
+
+        if x_axis_aligned and y_axis_aligned:
+            aligned = True
+
+        if aligned:
+            break
+
+    return True
+
+
+def destination_align():
+    logger.info("edcm.navigation.align()")
+
+    center = {'x': 0, 'y': 0}
+
+    ship_status = get_ship_status()['status']
+
+    if not (ship_status == 'in_supercruise' or ship_status == 'in_space'):
+        logger.error('align=err1')
+        raise Exception('align error 1')
+
+    while sun_percent() > 5:
+        send(keymap['PitchUpButton'], state=1)
+    send(keymap['PitchUpButton'], state=0)
+
+    logging.info("edcm.navigation.align: set speed for maneuvering")
+    send(keymap['SetSpeed50'])
+
+    aligned = False
+    x_axis_aligned = False
+    x_offset = 0
+    pitch_rate = 0.25
+    y_axis_aligned = False
+    y_offset = 0
+    yaw_rate = 0.25
+
+    while not aligned:
+
+        offset = get_destination_offset()
+        direction = compare_coordinates(center, offset, threshold=25)
+
+        logger.info("compare_coordinates(center vs offset) ( %s vs %s ) = %s" % (center, offset, direction))
+
+        if direction[0]:
+            logger.info("direction[0] == %s" % direction[0])
+            if direction[0] != "ON":
+                logger.info("x_axis direction = %s" % direction[0])
+                if x_offset != 0:
+                    logger.info("previous heading = %.f" % x_offset)
+                if str(direction[0]).startswith("LEFT"):
+                    logger.info("Yaw Left")
+                    last_offset = x_offset
+                    try:
+                        x_offset = float(str(direction[1]))
+                    except ValueError:
+                        logger.error("compare_coordinates.direction did not parse (%s vs %s) = %s" % (
+                            center, direction[2], direction[3]))
+                    if x_offset >= last_offset:
+                        send(keymap['YawLeftButton'], hold=yaw_rate)
+                elif str(direction[0]).startswith("RIGHT"):
+                    logger.info("Rotate Right")
+                    last_offset = x_offset
+                    try:
+                        x_offset = float(str(direction[1]))
+                    except ValueError:
+                        logger.error("compare_coordinates.direction did not parse (%s vs %s) = %s" % (
+                            center, direction[2], direction[3]))
+                    if x_offset >= last_offset:
+                        send(keymap['YawRightButton'], hold=yaw_rate)
+            else:
+                x_axis_aligned = True
+                x_offset = 0
+
+        if direction[2]:
+            logger.info("direction[1] == %s" % direction[1])
+            if direction[1] != "ON":
+                logger.info("y_axis direction = %s" % direction[1])
+            if y_offset != 0:
+                logger.info("previous heading = %.f" % y_offset)
+            if str(direction[2]).startswith("UP"):
+                logger.info("Pitch Up")
+                last_offset = y_offset
+                try:
+                    y_offset = float(str(direction[3]))
+                except ValueError:
+                    logger.error("compare_coordinates.direction did not parse (%s vs %s) = %s" % (
+                        center, direction[2], direction[3]))
+                if y_offset >= last_offset:
+                    send(keymap['PitchUpButton'], hold=pitch_rate)
+            elif str(direction[2]).startswith("DOWN"):
+                logger.info("Pitch Down")
+                last_offset = y_offset
+                try:
+                    y_offset = float(str(direction[3]))
+                except ValueError:
+                    logger.error("compare_coordinates.direction did not parse (%s vs %s) = %s" % (
+                        center, direction[2], direction[3]))
+                if y_offset >= last_offset:
+                    send(keymap['PitchDownButton'], hold=pitch_rate)
+            else:
+                y_axis_aligned = True
+                y_offset = 0
+
+        if x_axis_aligned and y_axis_aligned:
+            aligned = True
+
+        if aligned:
+            break
+
+    return True
+
+
 def align():
     logger.info("edcm.navigation.align()")
 
     center = {'x': 0, 'y': 0}
 
-    if not (get_ship_status()['status'] == 'in_supercruise' or get_ship_status()['status'] == 'in_space'):
+    ship_status = get_ship_status()['status']
+
+    if not (ship_status == 'in_supercruise' or ship_status == 'in_space'):
         logger.error('align=err1')
         raise Exception('align error 1')
 
@@ -548,6 +799,11 @@ def align():
     close_a = 18
     hold_pitch = 0.350 * SHIP_FACTOR
     hold_roll = 0.170 * SHIP_FACTOR
+
+    if ship_status == 'in_space':
+        # adjust hold time for nor normal space
+        hold_pitch = hold_pitch * .5
+        hold_roll = hold_roll * .5
 
     logging.info("edcm.navigation.align: compass align")
     offset = get_navpoint_offset()
@@ -699,17 +955,18 @@ def reset():
     logging.info("edcm.navigation.reset()")
     logging.info("edcm.navigation.reset: resetting to safe position")
 
-    logging.info("edcm.navigation.reset: 1) point away from bright objects")
-    send(keymap['PitchUpButton'], state=1)
-    while sun_percent() > 3:
-        sleep(.2)
+    logging.info("edcm.navigation.reset: 1) go to safe position")
+    position()
 
-    logging.info("edcm.navigation.reset: 2) move away")
-    send(keymap['RollRightButton'], state=1)
+    logging.info("edcm.navigation.reset: 2) pith up and rotate to reset")
     send(keymap['SetSpeed100'])
-    duration = 5 + SHIP_FACTOR
-    send(keymap['RollRightButton'], state=0)
+    send(keymap['RollRightButton'], state=1)
+    send(keymap['PitchUpButton'], state=1)
+    duration = 1 + SHIP_FACTOR
     sleep(duration)
+    send(keymap['PitchUpButton'], state=0)
+    send(keymap['RollRightButton'], state=0)
+    send(keymap['SetSpeed100'])
 
 
 def position(refueled_multiplier=1):
@@ -739,6 +996,7 @@ def position(refueled_multiplier=1):
 def auto_launch():
     logging.info("edcm.navigation.auto_launch()")
     ship_status = get_ship_status()['status']
+    logger.info("ship_status = %s" % json.dumps(ship_status))
     if ship_status == 'in_station':
         send(keymap['UI_Down'], repeat=2)  # UI move down to AUTO LAUNCH
         send(keymap['UI_Select'])
@@ -774,8 +1032,10 @@ def autopilot():
     logging.info("edcm.navigation.autopilot: ship_status = %s" % ship_status)
     while ship_status['target']:
         if get_ship_status()['status'] == 'in_space' or get_ship_status()['status'] == 'in_supercruise':
-            logging.info('\n' + 200 * '-' + '\n' + '---- algin() ' + 179 * '-' + '\n' + 200 * '-')
-            align()
+            logging.info('\n' + 200 * '-' + '\n' + '---- navigation_align() ' + 179 * '-' + '\n' + 200 * '-')
+            navigation_align()
+            logging.info('\n' + 200 * '-' + '\n' + '---- destination_align() ' + 179 * '-' + '\n' + 200 * '-')
+            destination_align()
             logging.info('\n' + 200 * '-' + '\n' + '---- jump() ' + 180 * '-' + '\n' + 200 * '-')
             jump()
             logging.info('\n' + 200 * '-' + '\n' + '---- refuel() ' + 178 * '-' + '\n' + 200 * '-')
@@ -790,3 +1050,16 @@ def autopilot():
     logging.info("edcm.navigation.autopilot: target destination reached")
     send(keymap['SetSpeedZero'])
     logging.info('\n' + 200 * '-' + '\n' + '---- AUTOPILOT END ' + 181 * '-' + '\n' + 200 * '-')
+
+
+def supercruise():
+    logging.info("edcm.navigation.supercruise()")
+    ship_status = get_ship_status()
+    logging.info("edcm.navigation.autopilot: ship_status = %s" % ship_status)
+    while ship_status['status'] == 'in_supercruise':
+        navigation_align()
+        destination_align()
+        ship_status = get_ship_status()
+        logging.info("edcm.navigation.autopilot: ship_status = %s" % ship_status)
+
+    return None

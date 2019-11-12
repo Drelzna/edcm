@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 def get_latest_journal(player_journal_location=None):
     """Returns the full path of the latest (most recent) elite log file (journal) from specified path"""
     if not player_journal_location:
-        player_journal_location = environ['USERPROFILE'] + "\Saved Games\Frontier Developments\Elite Dangerous"
+        player_journal_location = environ['USERPROFILE'] + "\\Saved Games\\Frontier Developments\\Elite Dangerous"
 
     list_of_logs = [join(player_journal_location, f) for f in listdir(player_journal_location) if
                     isfile(join(player_journal_location, f)) and f.startswith('Journal.')]
@@ -48,35 +48,48 @@ def get_ship_status():
                 log_event = log['event']
 
                 if log_event == 'StartJump':
+                    logger.debug("%s: ship['status'] = %s" % (json.dumps(log), ship['status']))
                     ship['status'] = str('starting_' + log['JumpType']).lower()
 
                 elif log_event == 'SupercruiseEntry' or log_event == 'FSDJump':
+                    logger.debug("%s: ship['status'] = %s" % (json.dumps(log), ship['status']))
                     ship['status'] = 'in_supercruise'
 
                 elif log_event == 'SupercruiseExit' or log_event == 'DockingCancelled' or (
                         log_event == 'Music' and ship['status'] == 'in_undocking') or (
-                        log_event == 'Location' and log['Docked'] == False):
+                        log_event == 'Location' and not log['Docked']):
+                    logger.debug("%s: ship['status'] = %s" % (json.dumps(log), ship['status']))
                     ship['status'] = 'in_space'
 
                 elif log_event == 'Undocked':
                     # ship['status'] = 'starting_undocking'
                     ship['status'] = 'in_space'
+                    logger.debug("%s: ship['status'] = %s" % (json.dumps(log), ship['status']))
 
                 elif log_event == 'DockingRequested':
+                    logger.debug("%s: ship['status'] = %s" % (json.dumps(log), ship['status']))
                     ship['status'] = 'starting_docking'
 
                 elif log_event == "Music":
                     if log['MusicTrack'] == "DockingComputer":
                         if ship['status'] == 'starting_undocking':
+                            logger.debug("%s: ship['status'] = %s" % (json.dumps(log), ship['status']))
                             ship['status'] = 'in_undocking'
                         elif ship['status'] == 'starting_docking':
+                            logger.debug("%s: ship['status'] = %s" % (json.dumps(log), ship['status']))
                             ship['status'] = 'in_docking'
                         else:
+                            logger.debug("%s: ship['status'] = %s" % (json.dumps(log), ship['status']))
                             ship['status'] = 'docking'
                     elif log['MusicTrack'] == "NoTrack":
-                            ship['status'] = 'in_space'
+                        logger.debug("%s: ship['status'] = %s" % (json.dumps(log), ship['status']))
+                        ship['status'] = 'in_space'
+                    elif log['MusicTrack'] == "Starport":
+                        logger.debug("%s: ship['status'] = %s" % (json.dumps(log), ship['status']))
+                        ship['status'] = 'in_station'
 
                 elif log_event == 'Docked':
+                    logger.debug("%s: ship['status'] = %s" % (json.dumps(log), ship['status']))
                     ship['status'] = 'in_station'
 
                 # parse ship type
@@ -92,8 +105,9 @@ def get_ship_status():
                 if 'FuelCapacity' in log and ship['type'] != 'TestBuggy':
                     try:
                         ship['fuel_capacity'] = log['FuelCapacity']['Main']
-                    except:
+                    except Exception as e:
                         ship['fuel_capacity'] = log['FuelCapacity']
+                        logger.error(e)
                 if log_event == 'FuelScoop' and 'Total' in log:
                     ship['fuel_level'] = log['Total']
                 if ship['fuel_level'] and ship['fuel_capacity']:
@@ -124,7 +138,7 @@ def get_ship_status():
                         ship['target'] = None
 
                 # parse cargo
-                if (log_event == 'Cargo'):
+                if log_event == 'Cargo':
                     if log['Vessel'] == 'Ship':
                         ship['cargo_count'] = log['Count']
 

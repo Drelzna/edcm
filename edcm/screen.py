@@ -29,11 +29,13 @@ def get_elite_size():
     logger.debug("edcm.screen.get_elite_size()")
     screen_size = {}
     elite_hwnd = windows.get_elite_hwnd()
-    left, top, x2, y2 = win32gui.GetWindowRect(elite_hwnd)
+    _left, _top, _right, _bottom = win32gui.GetClientRect(elite_hwnd)
+    left, top = win32gui.ClientToScreen(elite_hwnd, (_left, _top))
+    right, bottom = win32gui.ClientToScreen(elite_hwnd, (_right, _bottom))
     screen_size['left'] = left
     screen_size['top'] = top
-    screen_size['width'] = x2 - left + 1
-    screen_size['height'] = y2 - top + 1
+    screen_size['width'] = right - left
+    screen_size['height'] = bottom - top
     logger.debug("return get_elite_size: left => %d, top => %d, width => %d, height => %d" % (
         screen_size['left'], screen_size['top'], screen_size['width'], screen_size['height']))
     return screen_size
@@ -98,7 +100,8 @@ def resource_path(relative_path):
     try:
         # PyInstaller creates a temp folder and stores path in _MEIPASS
         base_path = sys._MEIPASS
-    except Exception:
+    except Exception as e:
+        logger.error(e)
         base_path = abspath(".")
 
     logger.debug("return %s" % join(base_path, relative_path))
@@ -134,7 +137,7 @@ def equalize(image):
     return img
 
 
-def filter(image=None, testing=False, equalize_it=False, f1=None, f2=None):
+def image_filter(image=None, testing=False, equalize_it=False, f1=None, f2=None):
     logger.debug("edcm.screen.filter(image=%s, testing=%s, equalize_it=%s, f1=%s, f2=%s)" % (
         image, testing, equalize_it, f1, f2))
 
@@ -165,61 +168,63 @@ def filter_bright(image=None, testing=False):
     logger.debug("edcm.screen.filter_bright(image=%s, testing=%s" % (image, testing))
     f1 = [0, 0, 215]
     f2 = [0, 0, 255]
-    return filter(image=image, testing=testing, equalize_it=True, f1=f1, f2=f2)
+    return image_filter(image=image, testing=testing, equalize_it=True, f1=f1, f2=f2)
 
 
 def filter_sun(image=None, testing=False):
     logger.debug("edcm.screen.filter_sun(image=%s, testing=%s" % (image, testing))
     f1 = [0, 100, 240]
     f2 = [180, 255, 255]
-    return filter(image=image, testing=testing, equalize_it=True, f1=f1, f2=f2)
+    return image_filter(image=image, testing=testing, equalize_it=True, f1=f1, f2=f2)
 
 
 def filter_destination(image=None, testing=False):
     logger.debug("edcm.screen.filter_destination(image=%s, testing=%s" % (image, testing))
     # use hsv_slider to attain viewable image containing the destination reticule
-    f1 = [0, 0, 128]  # low pass
-    f2 = [180, 255, 255]  # high pass
-    return filter(image=image, testing=testing, equalize_it=True, f1=f1, f2=f2)
+    # f1 = [0, 0, 128]  # low pass
+    # f2 = [180, 255, 255]  # high pass
+    f1 = [15, 15, 220]  # low pass
+    f2 = [30, 255, 255]  # high pass
+    return image_filter(image=image, testing=testing, equalize_it=False, f1=f1, f2=f2)
 
 
 def filter_compass(image=None, testing=False):
     logger.debug("edcm.screen.filter_blue(image=%s, testing=%s" % (image, testing))
     f1 = [0, 0, 16]
     f2 = [180, 255, 255]
-    return filter(image=image, testing=testing, equalize_it=False, f1=f1, f2=f2)
+    return image_filter(image=image, testing=testing, equalize_it=False, f1=f1, f2=f2)
 
 
 def filter_blue(image=None, testing=False):
     logger.debug("edcm.screen.filter_blue(image=%s, testing=%s" % (image, testing))
     f1 = [0, 100, 200]
     f2 = [180, 100, 255]
-    return filter(image=image, testing=testing, equalize_it=True, f1=f1, f2=f2)
+    return image_filter(image=image, testing=testing, equalize_it=True, f1=f1, f2=f2)
 
 
 def hsv_slider(screen_size=None, bandw=False):
     logger.debug("edcm.screen.hsv_slider(screen_size=%s,bandw=%s)" % (screen_size, bandw))
     cv2.namedWindow('image')
 
-    ilowH = 0
-    ihighH = 179
+    ilow_h = 0
+    ihigh_h = 179
 
-    ilowS = 0
-    ihighS = 255
-    ilowV = 0
-    ihighV = 255
+    ilow_s = 0
+    ihigh_s = 255
+    ilow_v = 0
+    ihigh_v = 255
 
     # create trackbars for color change
-    cv2.createTrackbar('lowH', 'image', ilowH, 179, callback)
-    cv2.createTrackbar('highH', 'image', ihighH, 179, callback)
+    cv2.createTrackbar('lowH', 'image', ilow_h, 179, callback)
+    cv2.createTrackbar('highH', 'image', ihigh_h, 179, callback)
 
-    cv2.createTrackbar('lowS', 'image', ilowS, 255, callback)
-    cv2.createTrackbar('highS', 'image', ihighS, 255, callback)
+    cv2.createTrackbar('lowS', 'image', ilow_s, 255, callback)
+    cv2.createTrackbar('highS', 'image', ihigh_s, 255, callback)
 
-    cv2.createTrackbar('lowV', 'image', ilowV, 255, callback)
-    cv2.createTrackbar('highV', 'image', ihighV, 255, callback)
+    cv2.createTrackbar('lowV', 'image', ilow_v, 255, callback)
+    cv2.createTrackbar('highV', 'image', ihigh_v, 255, callback)
 
-    while (True):
+    while True:
         if screen_size is not None:
             screen_size = get_elite_size()
 
@@ -231,16 +236,16 @@ def hsv_slider(screen_size=None, bandw=False):
             frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
 
         # get trackbar positions
-        ilowH = cv2.getTrackbarPos('lowH', 'image')
-        ihighH = cv2.getTrackbarPos('highH', 'image')
-        ilowS = cv2.getTrackbarPos('lowS', 'image')
-        ihighS = cv2.getTrackbarPos('highS', 'image')
-        ilowV = cv2.getTrackbarPos('lowV', 'image')
-        ihighV = cv2.getTrackbarPos('highV', 'image')
+        ilow_h = cv2.getTrackbarPos('lowH', 'image')
+        ihigh_h = cv2.getTrackbarPos('highH', 'image')
+        ilow_s = cv2.getTrackbarPos('lowS', 'image')
+        ihigh_s = cv2.getTrackbarPos('highS', 'image')
+        ilow_v = cv2.getTrackbarPos('lowV', 'image')
+        ihigh_v = cv2.getTrackbarPos('highV', 'image')
 
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        lower_hsv = np.array([ilowH, ilowS, ilowV])
-        higher_hsv = np.array([ihighH, ihighS, ihighV])
+        lower_hsv = np.array([ilow_h, ilow_s, ilow_v])
+        higher_hsv = np.array([ihigh_h, ihigh_s, ihigh_v])
         mask = cv2.inRange(hsv, lower_hsv, higher_hsv)
 
         frame = cv2.bitwise_and(frame, frame, mask=mask)

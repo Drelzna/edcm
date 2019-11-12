@@ -4,12 +4,15 @@ import os
 import sys
 import win32con
 import win32gui
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+from edcm import navigation, windows, screen, galaxy_map
+
 
 logging.basicConfig(filename='edcm.log', level=logging.DEBUG)
 logger = colorlog.getLogger()
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 handler = logging.StreamHandler()
-handler.setLevel(logging.INFO)
+handler.setLevel(logging.DEBUG)
 handler.setFormatter(
     colorlog.ColoredFormatter('%(log_color)s%(levelname)-8s%(reset)s %(white)s%(message)s',
                               log_colors={
@@ -23,9 +26,6 @@ handler.setFormatter(
                               ))
 logger.addHandler(handler)
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-from edcm import navigation, windows, screen, galaxy_map
-
 hwnd = win32gui.GetForegroundWindow()
 windows.get_hwnd_info(hwnd)
 
@@ -36,48 +36,55 @@ logger.info("screen_size['left'] = %s, screen_size['top'] = %s, screen_size['wid
 
 windows.set_elite_active_window()
 
-# galaxy_map.set_destination("NANOMAM")
-# galaxy_map.set_sys_dest(bookmark=1)
+galaxy_map.set_destination("NANOMAM")
 
-# navigation.auto_launch()
+navigation.auto_launch()
+
+navigation.navigation_align()
 
 # compass_image = navigation.get_compass_image(testing=True)
 
-sun_percent = navigation.sun_percent()
-logger.info("sun_percent == %s" % sun_percent)
+# sun_percent = navigation.sun_percent()
+# logger.info("sun_percent == %s" % sun_percent)
 
-compass_image, compass_height, compass_width = navigation.get_compass_image(testing=False)
+# compass_image, compass_height, compass_width = navigation.get_compass_image(testing=False)
 # screen.hsv_slider(bandw=True)
 
-nav_point = navigation.get_navpoint_coordinates(testing=False)
-logger.info("navpoint_coordinates = %s" % nav_point)
+# compass_image, compass_height, compass_width = navigation.get_compass_image(testing=False)
+# screen.hsv_slider(bandw=True)
 
-nav_check = navigation.check_coordinates(nav_point)
-logger.info("check_coordinates %s = %s" % (nav_point, nav_check))
+# nav_point = navigation.get_navpoint_coordinates(testing=False)
+# logger.info("navpoint_coordinates = %s" % nav_point)
 
-navpoint_offset = navigation.get_navpoint_offset()
-logger.info("navpoint_offset == %s" % navpoint_offset)
+# nav_check = navigation.check_coordinates(nav_point)
+# logger.info("check_coordinates %s = %s" % (nav_point, nav_check))
 
-center = {'x': 0, 'y': 0}
-direction = navigation.compare_coordinates(navpoint_offset, center)
-logger.info("direction = %s" % direction)
+# navpoint_offset = navigation.get_navpoint_offset()
+# logger.info("navpoint_offset == %s" % navpoint_offset)
 
-dest_point = navigation.get_destination_coordinates(testing=False)
-logger.info("destination_coordinates = %s" % dest_point)
+# center = {'x': 0, 'y': 0}
+# direction = navigation.compare_coordinates(center, navpoint_offset)
+# logger.info("direction = %s" % direction)
 
-dest_check = navigation.check_coordinates(dest_point)
-logger.info("check_coordinates %s = %s" % (dest_point, dest_check))
+# dest_point = navigation.get_destination_coordinates(testing=False)
+# logger.info("destination_coordinates = %s" % dest_point)
 
-destination_offset = navigation.get_destination_offset(average=True)
-logger.info("destination_offset == %s" % destination_offset)
+# dest_check = navigation.check_coordinates(dest_point)
+# logger.info("check_coordinates %s = %s" % (dest_point, dest_check))
 
-center = {'x': 0, 'y': 0}
-direction = navigation.compare_coordinates(destination_offset, center)
-logger.info("direction = %s" % direction)
+# destination_offset = navigation.get_destination_offset(testing=False)
+# logger.info("destination_offset == %s" % destination_offset)
 
-# navigation.autopilot()
+# center = {'x': 0, 'y': 0}
+# direction = navigation.compare_coordinates(center, destination_offset)
+# logger.info("direction = %s" % direction)
 
-# navigation.suprrcruise()
+# navigation.navigation_align()
+# navigation.destination_align()
+
+navigation.autopilot()
+
+navigation.supercruise()
 
 if hwnd:
     try:
