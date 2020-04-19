@@ -36,13 +36,13 @@ logger.info("screen_size['left'] = %s, screen_size['top'] = %s, screen_size['wid
 
 windows.set_elite_active_window()
 
-galaxy_map.set_destination("NANOMAM")
+# galaxy_map.set_destination("NANOMAM")
 
-navigation.auto_launch()
+# navigation.auto_launch()
 
 navigation.navigation_align()
 
-# compass_image = navigation.get_compass_image(testing=True)
+compass_image = navigation.get_compass_image(testing=True)
 
 # sun_percent = navigation.sun_percent()
 # logger.info("sun_percent == %s" % sun_percent)
@@ -82,7 +82,7 @@ navigation.navigation_align()
 # navigation.navigation_align()
 # navigation.destination_align()
 
-navigation.autopilot()
+# navigation.autopilot()
 
 navigation.supercruise()
 

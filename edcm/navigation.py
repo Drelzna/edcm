@@ -4,13 +4,15 @@ from math import degrees, atan
 from time import sleep, time
 
 import cv2
-from numpy import sum, where
+import imutils
+from numpy import sum, where, linspace, dstack
 
 from edcm import windows
 from edcm.bindings import get_bindings, get_scanner
 from edcm.control import send
 from edcm.journal import get_ship_status
-from edcm.screen import resource_path, show_image, filter_sun, get_elite_size, get_screen, equalize, filter_destination
+from edcm.screen import resource_path, show_image, filter_sun, \
+    get_elite_size, get_screen, equalize, filter_destination
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +22,7 @@ logger = logging.getLogger(__name__)
 # SHIP_FACTOR = 3  # large and slow ships
 SHIP_FACTOR = 2.2  # CUTTER
 
-SCOOPABLE_STAR_TYPES = ['A', 'B', 'F', 'G', 'K', 'M', 'O']
+FUEL_STARS = ['A', 'B', 'F', 'G', 'K', 'M', 'O']
 
 keymap = get_bindings()
 
@@ -52,55 +54,115 @@ def sun_percent():
 def get_compass_image(testing=False):
     logger.info("edcm.navigation.get_compass_image(testing=%s)" % testing)
 
+    # left and top coordinate point for matched compass template
     pt = None
 
-    windows.set_elite_active_window()
-    compass_template = cv2.imread(resource_path("..\\templates\\compass.png"), cv2.IMREAD_GRAYSCALE)
-    compass_width, compass_height = compass_template.shape[::-1]
+    match = None
+
+    # additional pixels to match boundary
     doubt = 10
 
+    windows.set_elite_active_window()
+
+    # read high resolution navigation compass template from disk
+    # compass_file = cv2.imread(resource_path("..\\templates\\navcompass.jpg"), 1)
+    compass_file = cv2.imread(resource_path("..\\templates\\navcircle.png"), 1)
+    # compass_file = cv2.imread(resource_path("..\\templates\\navcompass.png"), 1)
+    # compass_file = cv2.imread(resource_path("..\\templates\\compass.png"), 1)
+    compass_template = cv2.cvtColor(compass_file, cv2.COLOR_BGR2GRAY)
+    (compass_width, compass_height) = compass_template.shape[::-1]
+    logger.debug("compass_template: width, height, channels: %s, %s" % (compass_width, compass_height))
+
     screen_size = get_elite_size()
-    # locate compass by screen ratio
-    screen_size['left'] = round(int(screen_size['left']) + (int(screen_size['width']) * .25))
-    screen_size['top'] = round(int(screen_size['top']) + (int(screen_size['height']) * .5))
-    screen_size['width'] = round(int(screen_size['width']) * .25)
-    screen_size['height'] = round(int(screen_size['height']) * .5)
-    hud_image = get_screen(screen_size)
+    logger.info("screen_size: left = %s, top = %s, width = %s, height = %s"
+                % (screen_size['left'], screen_size['top'], screen_size['width'], screen_size['height']))
 
+    # Take screenshot, reduce size to compass location by screen ratio
+    compass_screen = {'left': round(int(screen_size['width'] * 5 / 16)),
+                      'top': round(int(screen_size['height'] * 1 / 2)),
+                      'width': round(int(screen_size['width'] * 1 / 2)),
+                      'height': round(int(screen_size['height'] * 1 / 2))}
+    # screen_size['top'] = screen_size['height'] - round(int(screen_size['height'] * 1/3))
+    # screen_size['height'] = round(int(screen_size['height'] * 1/3))
+    logger.info("compass_screen: left = %s, top = %s, width = %s, height = %s"
+                % (compass_screen['left'], compass_screen['top'], compass_screen['width'], compass_screen['height']))
+    compass_image = get_screen(compass_screen, color="GRAY")
     if testing:
-        logger.info("show_image(hud_image)")
-        show_image(hud_image)
+        logger.info("show_image(compass_image")
+        show_image(compass_image)
 
-    # mask_orange = filter_orange(hud_image)
-    equalized = equalize(hud_image)
-
+    compass_template = cv2.Canny(compass_template, 100, 200)
     if testing:
-        logger.info("show_image(equalized)")
-        show_image(equalized)
+        logger.info("show_image(compass_template)")
+        show_image(compass_template)
 
-    match = cv2.matchTemplate(equalized, compass_template, cv2.TM_CCOEFF_NORMED)
-    match_image = hud_image.copy()
+    # check for match
+    logger.debug("match = cv2.matchTemplate(compass_image, compass_template, cv2.TM_CCOEFF)")
+    match = cv2.matchTemplate(compass_image, compass_template, cv2.TM_CCOEFF)
+    logger.debug(match)
+    # failed 1:1 match, attempt to rescale, template must be larger than capture
+    if match is None:
+        # loop over the scales of the image
+        for scale in linspace(0.2, 1.0, 20)[::-1]:
+            # resize the captured compass_image according to the scale, and keep track
+            # of the ratio of the resizing
+            resized = imutils.resize(compass_image, width=int(compass_image.shape[1] * scale))
+            r = compass_image.shape[1] / float(resized.shape[1])
+            # if the resized image is smaller than the template, then break
+            # from the loop
+            if resized.shape[0] < compass_height or resized.shape[1] < compass_width:
+                break
+            # detect edges in the resized, grayscale image and apply template
+            # matching to find the template in the image
+            edged = cv2.Canny(compass_image, 50, 200)
+            match = cv2.matchTemplate(edged, compass_template, cv2.TM_CCOEFF)
+            threshold = 0.8
+            loc = np.where(match >= threshold)
+            (_, maxVal, _, maxLoc) = cv2.minMaxLoc(match)
 
-    threshold = 0.3
-    logger.info("edcm.navigation.get_compass_image: match: %s >= threshold: %s" % (match, threshold))
-    loc = where(match >= threshold)
-    for point in zip(*loc[::-1]):
-        pt = point
-        cv2.rectangle(match_image, pt, (pt[0] + compass_width, pt[1] + compass_height), (0, 0, 255), 2)
+            if testing:
+                # draw a bounding box around the detected region
+                clone = dstack([edged, edged, edged])
+                cv2.rectangle(clone, (maxLoc[0], maxLoc[1]),
+                              (maxLoc[0] + compass_width, maxLoc[1] + compass_height), (0, 0, 255), 2)
+                show_image(clone)
 
-    if testing:
-        logger.info("show_image(match_image)")
-        show_image(match_image)
+            # if we have found a new maximum correlation value, then update
+            # the bookkeeping variable
+            if pt is None or maxVal > pt[0]:
+                pt = (maxVal, maxLoc, r)
+
+            # unpack the bookkeeping variable and compute the (x, y) coordinates
+            # of the bounding box based on the resized ratio
+            (_, maxLoc, r) = pt
+            (startX, startY) = (int(maxLoc[0] * r), int(maxLoc[1] * r))
+            (endX, endY) = (int((maxLoc[0] + compass_width) * r), int((maxLoc[1] + compass_height) * r))
+            # draw a bounding box around the detected result and display the image
+            cv2.rectangle(compass_image, (startX, startY), (endX, endY), (0, 0, 255), 2)
+
+            if testing:
+                show_image(compass_image)
+
+    # threshold = .4
+    # logger.info("edcm.navigation.get_compass_image: match: %s >= threshold: %s" % (match, threshold))
+    # loc = where(match >= threshold)
+    # for point in zip(*loc[::-1]):
+    #   pt = point
+    #     cv2.rectangle(compass_image, pt, (pt[0] + compass_width, pt[1] + compass_height), (0, 0, 255), 2)
+
+    # if testing:
+    #     logger.info("show_image(match_image)")
+    #     show_image(match_image)
 
     if pt is not None:
-        compass_image = hud_image[
+        compass_match = compass_image[
                         pt[1] - doubt: pt[1] + compass_height + doubt, pt[0] - doubt: pt[0] + compass_width + doubt
                         ].copy()
 
         if testing:
-            logger.info("show_image(compass_image)")
-            show_image(compass_image)
-        return compass_image, compass_width + (2 * doubt), compass_height + (2 * doubt)
+            logger.info("show_image(compass_match)")
+            show_image(compass_match)
+        return compass_match, compass_width + (2 * doubt), compass_height + (2 * doubt)
     else:
         logger.error("edcm.navigation.get_compass_image() failed.")
 
@@ -119,7 +181,7 @@ def check_reverse(compass_image, testing=False):
 
     coordinates = None
 
-    navcircle_template = cv2.imread(resource_path("..\\templates\\navcircle.png"), cv2.IMREAD_GRAYSCALE)
+    navcircle_template = cv2.imread(resource_path("..\\templates\\navcompass.png"), cv2.IMREAD_GRAYSCALE)
     navpoint_width, navpoint_height = navcircle_template.shape[::-1]
     equalized = equalize(compass_image)
 
@@ -248,9 +310,6 @@ def check_coordinates(point):
         if point['y'] is None:
             logger.error("point['y'] is None")
             return False
-    # if point['x'] == 0 and point['y'] == 0:
-    #     logger.error("x and y are 0")
-    #     return False
     logger.info("edcm.navigation.check_coordinates() return True")
     return True
 
@@ -466,15 +525,8 @@ def get_destination_coordinates(testing=False):
     windows.set_elite_active_window()
     screen = get_screen(screen_size)
 
-    # if testing:
-    #    show_image(screen)
-
     logger.info("edcm.navigation.get_destination_coordinates: mask = filter_destination(screen=%s))" % screen)
 
-    # if testing:
-    #     hsv_slider(screen_size=screen_size, bandw=True)
-
-    # mask = equalize(screen)
     mask = filter_destination(screen)
     if testing:
         show_image(mask)
@@ -929,7 +981,7 @@ def refuel(refuel_threshold=33):
         logging.error('refuel=err1')
         return False
 
-    if get_ship_status()['fuel_percent'] < refuel_threshold and get_ship_status()['star_class'] in SCOOPABLE_STAR_TYPES:
+    if get_ship_status()['fuel_percent'] < refuel_threshold and get_ship_status()['star_class'] in FUEL_STARS:
         logging.info("edcm.navigation.refuel: begin refueling ")
         send(keymap['SetSpeed100'])
         #     while not get_ship_status()['is_scooping']:
@@ -944,8 +996,8 @@ def refuel(refuel_threshold=33):
     elif get_ship_status()['fuel_percent'] >= refuel_threshold:
         logging.info("edcm.navigation.refuel: not needed")
         return False
-    elif get_ship_status()['star_class'] not in SCOOPABLE_STAR_TYPES:
-        logging.info("edcm.navigation.refuel: star is not scoopable")
+    elif get_ship_status()['star_class'] not in FUEL_STARS:
+        logging.info("edcm.navigation.refuel: not a refueling star")
         return False
     else:
         return False
@@ -1000,7 +1052,7 @@ def auto_launch():
     if ship_status == 'in_station':
         send(keymap['UI_Down'], repeat=2)  # UI move down to AUTO LAUNCH
         send(keymap['UI_Select'])
-        logger.info("edcmn.navigation.auto_launch: AUTO LAUNCH in progress")
+        logger.info("edcm.navigation.auto_launch: AUTO LAUNCH in progress")
         t0 = time()
         t1 = time()
         last = t0
@@ -1012,7 +1064,7 @@ def auto_launch():
             if last - t1 > 5:
                 last = t1
                 logger.info("t- %.2f, ship_status = %s" % ((t1 - t0), get_ship_status()['status']))
-        logger.info("edcmn.navigation.auto_launch: AUTO LAUNCH completed in %.2f seconds" % (t1 - t0))
+        logger.info("edcm.navigation.auto_launch: AUTO LAUNCH completed in %.2f seconds" % (t1 - t0))
         # boost 3x away
         for i in range(3):
             logger.info("edcm.navigation.auto_launch: boost")

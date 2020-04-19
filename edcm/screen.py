@@ -1,6 +1,4 @@
-import sys
-from os.path import join, abspath
-
+import os
 import colorlog
 import cv2
 import numpy as np
@@ -8,6 +6,7 @@ import win32api
 import win32con
 import win32gui
 import win32ui
+import ctypes
 
 from edcm import windows
 
@@ -16,8 +15,11 @@ logger = colorlog.getLogger()
 
 def get_screen_size():
     logger.debug("edcm.screen.get_screen_size()")
-    screen_size = {'width': win32api.GetSystemMetrics(win32con.SM_CXVIRTUALSCREEN),
-                   'height': win32api.GetSystemMetrics(win32con.SM_CYVIRTUALSCREEN),
+    user32 = ctypes.windll.user32
+    user32.SetProcessDPIAware()
+    [w, h] = [user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)]
+    screen_size = {'width': user32.GetSystemMetrics(0),
+                   'height': user32.GetSystemMetrics(1),
                    'left': win32api.GetSystemMetrics(win32con.SM_XVIRTUALSCREEN),
                    'top': win32api.GetSystemMetrics(win32con.SM_YVIRTUALSCREEN)}
     logger.debug("return: %d, %d, %d, %d" % (
@@ -41,20 +43,39 @@ def get_elite_size():
     return screen_size
 
 
-def get_elite_cockpit_size(screen_size=None):
-    logger.debug("edcm.screen.get_elite_cockpit_size(screen_size=%s)" % screen_size)
-    if not screen_size:
-        screen_size = get_elite_size()
+def get_screen(in_size=None, color="BGR"):
+    logger.debug("edcm.screen.get_screen(screen_size=%s)" % in_size)
+    screen_size = get_elite_size()
+    display_size = get_screen_size()
 
-    # reduce to cockpit view, upper 3/4 of screen
-    screen_size['height'] = round(int(screen_size['height']) * (3 / 4))
-    return screen_size
+    logger.debug("%s %s %s %s" % (in_size['top'], in_size['left'], in_size['height'], in_size['width']))
 
+    # if window is full screen
+    if display_size['width'] > screen_size['width']:
+        # resolution has been scaled
+        logger.info("resolution has been scaled: display %s x %s > screen %s x %s"
+                    % (display_size['width'], display_size['height'], screen_size['width'], screen_size['height']))
 
-def get_screen(screen_size=None):
-    logger.debug("edcm.screen.get_screen(screen_size=%s)" % screen_size)
-    if not screen_size:
-        screen_size = get_elite_size()
+        scalar_x = display_size['width']/screen_size['width']
+        scalar_y = display_size['height']/screen_size['height']
+
+        capture = {
+            'top': round(int(in_size['top'] * scalar_y)),
+            'left': round(int(in_size['left'] * scalar_x)),
+            'height': round(int(in_size['height'] * scalar_y)),
+            'width': round(int(in_size['width'] * scalar_x))}
+        logger.debug("capture[top] = in_size[top] * scalar_x : %s = %s * %s"
+                     % (capture['top'], in_size['top'], scalar_x))
+        logger.debug("capture[] = in_size[width] * scalar_x : %s = %s * %s"
+                     % (capture['width'], in_size['width'], scalar_x))
+        logger.debug("capture[width] = in_size[width] * scalar_x : %s = %s * %s"
+                     % (capture['width'], in_size['width'], scalar_x))
+        logger.debug("capture[width] = in_size[width] * scalar_x : %s = %s * %s"
+                     % (capture['width'], in_size['width'], scalar_x))
+    else:
+        capture = in_size
+
+    logger.debug("%s %s %s %s" % (capture['top'], capture['left'], capture['height'], capture['width']))
 
     # get int handle to main desktop
     hwin = win32gui.GetDesktopWindow()
@@ -72,17 +93,19 @@ def get_screen(screen_size=None):
     memdc.SelectObject(screenshot)
 
     # copy screen to memory device context
-    memdc.BitBlt((0, 0), (screen_size['width'], screen_size['height']), srcdc,
-                 (screen_size['left'], screen_size['top']), win32con.SRCCOPY)  # copies
-    # logger.debug(
-    #    "get_screen: memdc.BitBlt((0,0),"
-    #    " (screen_size['width']= %s, screen_size['height']= %s, screen_size['left']= %s, screen_size['top']= %ssrcdc),"
-    #    " win32con.SRCCOPY)" % (screen_size['width'], screen_size['height'], screen_size['left'], screen_size['top']))
+    memdc.BitBlt((0, 0), (capture['width'], capture['height']), srcdc,
+                 (capture['left'], capture['top']), win32con.SRCCOPY)  # copies
+    logger.debug(
+       "get_screen: memdc.BitBlt((0,0),"
+       " (capture['width']= %s, capture['height']= %s, capture['left']= %s, capture['top']= %s),"
+       " win32con.SRCCOPY)" % (capture['width'], capture['height'], capture['left'], capture['top']))
 
     # create Numpy Image Array
     bitmap_data = screenshot.GetBitmapBits(True)
-    img = np.fromstring(bitmap_data, dtype='uint8')
-    img.shape = (screen_size['height'], screen_size['width'], 4)
+    b_info = screenshot.GetInfo()
+
+    img = np.fromstring(bitmap_data, dtype=np.uint8)
+    img.shape = (b_info['bmHeight'], b_info['bmWidth'], 4)
 
     # clear resources
     srcdc.DeleteDC()
@@ -90,22 +113,20 @@ def get_screen(screen_size=None):
     win32gui.ReleaseDC(hwin, hwindc)
     win32gui.DeleteObject(screenshot.GetHandle())
 
-    cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-    return img
+    if color.upper() == 'RGB':
+        color = cv2.COLOR_BGRA2RGB
+    elif color.upper() == 'GRAY':
+        color = cv2.COLOR_BGRA2GRAY
+    elif color.upper() == 'BGR':
+        color = cv2.COLOR_BGRA2BGR
+
+    return cv2.cvtColor(img, color)
 
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
     logger.debug("edcm.screen.resource_path(relative_path=%s)" % relative_path)
-    try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
-        base_path = sys._MEIPASS
-    except Exception as e:
-        logger.error(e)
-        base_path = abspath(".")
-
-    logger.debug("return %s" % join(base_path, relative_path))
-    return join(base_path, relative_path)
+    return os.path.abspath(relative_path)
 
 
 def callback(x):
@@ -250,7 +271,7 @@ def hsv_slider(screen_size=None, bandw=False):
 
         frame = cv2.bitwise_and(frame, frame, mask=mask)
 
-        # show thresholded image
+        # show image
         cv2.imshow('image', frame)
 
         if cv2.waitKey(25) & 0xFF == ord('q'):
