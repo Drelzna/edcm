@@ -41,14 +41,17 @@ def set_destination(destination_system="Sol"):
 
         # type destination string in search box followed by return
         for c in destination_system:
-            direct_key = {'key': SCANCODE["DIK_" + c.upper()]}
-            if c.isspace():
-                direct_key['key'] = SCANCODE["DIK_SPACE"]
+            logger.debug("destination_system: %s, character %s, ascii value: %s", destination_system, c, ord(c))
+            if c.isspace() or ord(c) == 32:
+                direct_key = {'key': SCANCODE["DIK_SPACE"]}
+            elif ord(c) == 45:
+                direct_key = {'key': SCANCODE["DIK_MINUS"]}
+            else:
+                direct_key = {'key': SCANCODE["DIK_" + c.upper()]}
             send(direct_key)
-            sleep(.1)
         send(keymap['RET'])
 
-        sleep(10)  # plotting route time
+        sleep(3)  # estimate plotting route time, should be a screen read loop
 
         # select route
         send(keymap['UI_Select'])
