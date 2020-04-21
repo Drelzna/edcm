@@ -5,7 +5,7 @@ from time import sleep, time
 
 import cv2
 import imutils
-from numpy import sum, where, linspace, dstack
+import numpy as np
 
 from edcm import windows
 from edcm.bindings import get_bindings, get_scanner
@@ -57,8 +57,6 @@ def get_compass_image(testing=False):
     # left and top coordinate point for matched compass template
     pt = None
 
-    match = None
-
     # additional pixels to match boundary
     doubt = 10
 
@@ -103,7 +101,7 @@ def get_compass_image(testing=False):
     # failed 1:1 match, attempt to rescale, template must be larger than capture
     if match is None:
         # loop over the scales of the image
-        for scale in linspace(0.2, 1.0, 20)[::-1]:
+        for scale in np.linspace(0.2, 1.0, 20)[::-1]:
             # resize the captured compass_image according to the scale, and keep track
             # of the ratio of the resizing
             resized = imutils.resize(compass_image, width=int(compass_image.shape[1] * scale))
@@ -122,7 +120,7 @@ def get_compass_image(testing=False):
 
             if testing:
                 # draw a bounding box around the detected region
-                clone = dstack([edged, edged, edged])
+                clone = np.dstack([edged, edged, edged])
                 cv2.rectangle(clone, (maxLoc[0], maxLoc[1]),
                               (maxLoc[0] + compass_width, maxLoc[1] + compass_height), (0, 0, 255), 2)
                 show_image(clone)
@@ -189,7 +187,7 @@ def check_reverse(compass_image, testing=False):
     match_image = compass_image.copy()
     threshold = 0.7
 
-    loc = where(match >= threshold)
+    loc = np.where(match >= threshold)
     for point in zip(*loc[::-1]):
         coordinates = point
         if testing:
@@ -257,7 +255,7 @@ def get_navpoint_coordinates(testing=False):
     match = get_image_match(compass_image, navball_template)
 
     threshold = 0.8
-    loc = where(match >= threshold)
+    loc = np.where(match >= threshold)
     logger.info("edcm.navigation.get_navpoint_coordinates: loc = where(match >= threshold), %s = where(%s >= %s)" % (
         loc, match, threshold))
     mc = 0
@@ -534,7 +532,7 @@ def get_destination_coordinates(testing=False):
     match = get_image_match(mask, destination_template)
 
     threshold = .3
-    loc = where(match >= threshold)
+    loc = np.where(match >= threshold)
     for point in zip(*loc[::-1]):
         coordinates = point
         if testing:
