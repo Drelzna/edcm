@@ -4,7 +4,7 @@ psutil
 pypiwin32
 opencv_python==4.2.0.34
 opencv_contrib_python==4.2.0.34
-numpy==1.18.2
+numpy==1.22.0
 imutils==0.5.3
 pytesseract==0.3.3
 matplotlib==3.2.1
