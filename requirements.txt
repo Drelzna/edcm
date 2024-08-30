@@ -3,7 +3,7 @@ colorlog
 psutil
 pypiwin32
 opencv_python==4.2.0.34
-opencv_contrib_python==4.2.0.34
+opencv_contrib_python==4.8.1.78
 numpy==1.18.2
 imutils==0.5.3
 pytesseract==0.3.3
