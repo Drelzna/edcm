@@ -2,7 +2,7 @@ win32gui
 colorlog
 psutil
 pypiwin32
-opencv_python==4.2.0.34
+opencv_python==4.8.1.78
 opencv_contrib_python==4.2.0.34
 numpy==1.18.2
 imutils==0.5.3
